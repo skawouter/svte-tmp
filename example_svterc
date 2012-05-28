@@ -1,0 +1,53 @@
+[ui]
+# true to enable bold text, false to disable it.
+allow_bold=false
+
+# true to enable an audible bell, false to disable it.
+audible_bell=false
+
+# true to auto-hide the mouse cursor, false to leave it alone.
+autohide_mouse=true
+
+# Font to use for all text displayed.
+# Format: font-name font-size
+# Example: monospace 10
+# Example: Envy Code R 10
+font=monospace 10
+
+# true to start in fullscreen mode, false to start in windowed mode.
+fullscreen=false
+
+# Number of lines to allow scrolling back to. -1 for unlimited.
+num_scrollback_lines=-1
+
+# Whether or not to scroll to the bottom when a keystoke occurs.
+scroll_on_keystroke=true
+
+# Whether or not to scroll to the bottom when output occurs.
+scroll_on_output=false
+
+# true to use a transparent background, false for an opaque background.
+bg_transparent=false
+
+# To set an image as the background.
+#bg_image=/path/to/image
+
+# If using an image as background, set the saturation level here. (between 0 and 1) 
+#bg_saturation=.7
+
+# Regular expression to use for matching URLs in terminal text.
+url_regex=(ftp|http)s?://[-a-zA-Z0-9.?$%&/=_~#.,:;+]*
+
+# true to enable a visible bell, false to disable it.
+visible_bell=true
+
+# Initial window height in pixels.
+window_height=500
+
+# Initial window width in pixels.
+window_width=500
+
+# Characters that compose a word for highlighting words.
+# Character ranges are valid here, e.g. A-Z for all uppercase alpha chars.
+# The value given below is a good default if you're unsure.
+word_chars=-A-Za-z0-9,./?%&#:_
