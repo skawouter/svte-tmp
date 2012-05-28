@@ -17,8 +17,8 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-# mocicon version:
-VERSION = 0.1.4
+# svte version:
+VERSION = 0.1.4.1
 
 # Customize below to fit your system
 
