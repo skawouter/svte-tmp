@@ -21,6 +21,7 @@
 #include "defaults.h"
 #include <gdk/gdkkeysyms.h>
 #include <glib/goption.h>
+#include <glib.h>
 #include <gtk/gtk.h>
 #include <vte/vte.h>
 #include <unistd.h>
@@ -48,6 +49,7 @@ static void tab_switch(gboolean b);
 static void tab_title();
 static void tab_geometry_hints();
 static void tab_new();
+static void tab_togglebar();
 static void configure_window();
 static void tab_focus(GtkNotebook *notebook, GtkNotebookPage *page,
                       guint page_num, gpointer user_data);
@@ -109,6 +111,10 @@ gboolean event_key(GtkWidget *widget, GdkEventKey *event) {
       tab_new();
       return TRUE;
     }
+		if (g == GDK_H) {
+		  tab_togglebar();
+			return TRUE;
+		}
     if (g == GDK_W) {
       tab_close();
       return TRUE;
@@ -159,6 +165,18 @@ static void tab_close() {
   }
   if (gtk_notebook_get_n_pages(GTK_NOTEBOOK(svte.notebook)) == 0) {
     quit();
+  }
+}
+
+static void tab_togglebar() {
+
+  if(gtk_notebook_get_show_tabs(GTK_NOTEBOOK(svte.notebook))) {
+    gtk_notebook_set_show_tabs(GTK_NOTEBOOK(svte.notebook), FALSE);
+  }
+  else {
+    if (gtk_notebook_get_n_pages(GTK_NOTEBOOK(svte.notebook)) != 1)  {
+      gtk_notebook_set_show_tabs(GTK_NOTEBOOK(svte.notebook), TRUE); 
+    }
   }
 }
 
