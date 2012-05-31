@@ -51,3 +51,38 @@ window_width=500
 # Character ranges are valid here, e.g. A-Z for all uppercase alpha chars.
 # The value given below is a good default if you're unsure.
 word_chars=-A-Za-z0-9,./?%&#:_
+
+[colour scheme]
+foreground=
+background=
+#dark/light black
+0=#000000
+8=#646464
+
+#dark/light red
+1=#960000
+9=#F05050
+
+#dark/light green
+2=#009600
+10=#49DC49
+
+#dark/light yellow
+3=#AA5500
+11=#B8B81E
+
+#dark/light blue
+4=#0D259C
+12=#5555FF
+
+#dark/light magenta
+5=#A000A0
+13=#E64CE6
+
+#dark/light cyan
+6=#009696
+14=#00C8C8
+
+#dark/light white
+7=#F0F0F0
+15=#FFFFFF
