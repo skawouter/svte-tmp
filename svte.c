@@ -54,6 +54,8 @@ static void configure_window();
 static void tab_focus(GtkNotebook *notebook, GtkNotebookPage *page,
                       guint page_num, gpointer user_data);
 static void set_window_title(guint page_num, term *t);
+static void copy_clipboard();
+static void paste_clipboard();
 
 
 static GQuark term_data_id = 0;
@@ -107,7 +109,6 @@ static void quit() {
 
 gboolean event_key(GtkWidget *widget, GdkEventKey *event) {
   guint(g) = event->keyval;
-
   if ((event->state & (GDK_CONTROL_MASK|GDK_SHIFT_MASK)) ==
       (GDK_CONTROL_MASK|GDK_SHIFT_MASK)) {
     if (g == GDK_T) {
@@ -120,6 +121,14 @@ gboolean event_key(GtkWidget *widget, GdkEventKey *event) {
 		}
     if (g == GDK_W) {
       tab_close();
+      return TRUE;
+    }
+    if (g == GDK_V) {
+      paste_clipboard();
+      return TRUE;
+    }
+    if (g == GDK_C) {
+      copy_clipboard();
       return TRUE;
     }
   }
@@ -152,6 +161,19 @@ gboolean event_button(GtkWidget *widget, GdkEventButton *button_event, struct te
   return FALSE;
 }
 
+static void copy_clipboard(){
+  gint page = gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook));
+  struct term *t;
+  t = get_page_term(NULL, page);
+  vte_terminal_copy_clipboard(VTE_TERMINAL(t->vte));
+}
+
+static void paste_clipboard(){
+  gint page = gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook));
+  struct term *t;
+  t = get_page_term(NULL, page);
+  vte_terminal_paste_clipboard(VTE_TERMINAL(t->vte));
+}
 
 static void tab_close() {
   gint page = gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook));
