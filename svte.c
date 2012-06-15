@@ -53,7 +53,7 @@ static void tab_togglebar();
 static void configure_window();
 static void tab_focus(GtkNotebook *notebook, GtkNotebookPage *page,
                       guint page_num, gpointer user_data);
-static void set_window_title(guint page_num, term *t);
+static void set_window_title(term *t);
 static void copy_clipboard();
 static void paste_clipboard();
 
@@ -279,13 +279,11 @@ static void tab_geometry_hints(term *t) {
 
 
 static void tab_title(GtkWidget *widget, term *t) {
-  gtk_label_set_text(
-      GTK_LABEL(t->label),
-      vte_terminal_get_window_title(VTE_TERMINAL(t->vte)));
-}
+  set_window_title(t);
+} 
 
 
-static void set_window_title(guint page_num, term *t){
+static void set_window_title(term *t){
   const char *title = vte_terminal_get_window_title(VTE_TERMINAL(t->vte));
   if (title == NULL) {
     title = "svte";
@@ -293,12 +291,11 @@ static void set_window_title(guint page_num, term *t){
   gtk_window_set_title(GTK_WINDOW(svte.win), title);
 }
 
-
 static void tab_focus(GtkNotebook *notebook, GtkNotebookPage *page,
                       guint page_num, gpointer user_data) {
   struct term *t;
   t = get_page_term(NULL, page_num);
-  set_window_title(page_num, t);
+  set_window_title(t);
 }
 
 
@@ -370,7 +367,7 @@ static void tab_new() {
   vte_terminal_match_set_cursor_type(VTE_TERMINAL(t->vte), *tmp,
                                      GDK_HAND2);
   g_free(tmp);
-  set_window_title(index, t);
+  set_window_title(t);
   gtk_widget_show_all(svte.notebook);
   gtk_notebook_set_current_page(GTK_NOTEBOOK(svte.notebook), index);
   gtk_widget_grab_focus(t->vte);
@@ -396,6 +393,9 @@ static void configure_window() {
   g_signal_connect(svte.win, "key-press-event", G_CALLBACK(event_key), NULL);
   g_signal_connect(G_OBJECT(svte.notebook), "switch-page", G_CALLBACK(tab_focus),
                    NULL);
+  struct term *t;
+  t = get_page_term(NULL, 0);
+  set_window_title(t);
 } 
 
 
