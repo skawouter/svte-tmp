@@ -21,7 +21,6 @@
 #include "defaults.h"
 #include <gdk/gdkkeysyms.h>
 #include <glib/goption.h>
-#include <glib.h>
 #include <gtk/gtk.h>
 #include <vte/vte.h>
 #include <unistd.h>
@@ -270,6 +269,9 @@ static void tab_geometry_hints(term *t) {
 
 
 static void tab_title(GtkWidget *widget, term *t) {
+  gtk_label_set_text(
+      GTK_LABEL(t->label),
+      vte_terminal_get_window_title(VTE_TERMINAL(t->vte)));
   set_window_title(t);
 } 
 
@@ -358,7 +360,6 @@ static void tab_new() {
   vte_terminal_match_set_cursor_type(VTE_TERMINAL(t->vte), *tmp,
                                      GDK_HAND2);
   g_free(tmp);
-  set_window_title(t);
   gtk_widget_show_all(svte.notebook);
   gtk_notebook_set_current_page(GTK_NOTEBOOK(svte.notebook), index);
   gtk_widget_grab_focus(t->vte);
