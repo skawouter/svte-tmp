@@ -54,8 +54,7 @@ static void configure_window();
 static void tab_focus(GtkNotebook *notebook, GtkNotebookPage *page,
                       guint page_num, gpointer user_data);
 static void set_window_title(term *t);
-static void copy_clipboard();
-static void paste_clipboard();
+static term* get_current_term();
 
 
 static GQuark term_data_id = 0;
@@ -107,6 +106,13 @@ static void quit() {
 }
 
 
+static term* get_current_term(){
+  gint page = gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook));
+  struct term *t;
+  t = get_page_term(NULL, page);
+  return t;
+}
+
 gboolean event_key(GtkWidget *widget, GdkEventKey *event) {
   guint(g) = event->keyval;
   if ((event->state & (GDK_CONTROL_MASK|GDK_SHIFT_MASK)) ==
@@ -115,20 +121,20 @@ gboolean event_key(GtkWidget *widget, GdkEventKey *event) {
       tab_new();
       return TRUE;
     }
-		if (g == GDK_H) {
-		  tab_togglebar();
-			return TRUE;
-		}
+    if (g == GDK_H) {
+      tab_togglebar();
+      return TRUE;
+    }
     if (g == GDK_W) {
       tab_close();
       return TRUE;
     }
     if (g == GDK_V) {
-      paste_clipboard();
+      vte_terminal_paste_clipboard(VTE_TERMINAL(get_current_term()->vte));
       return TRUE;
     }
     if (g == GDK_C) {
-      copy_clipboard();
+      vte_terminal_copy_clipboard(VTE_TERMINAL(get_current_term()->vte));
       return TRUE;
     }
   }
@@ -138,7 +144,7 @@ gboolean event_key(GtkWidget *widget, GdkEventKey *event) {
       return TRUE;
     }
     if (g == GDK_Right) {
-	  tab_switch(TRUE);
+      tab_switch(TRUE);
       return TRUE;
     }
     if (g == GDK_F11) {
@@ -157,22 +163,7 @@ gboolean event_key(GtkWidget *widget, GdkEventKey *event) {
 
 
 gboolean event_button(GtkWidget *widget, GdkEventButton *button_event, struct term *t) {
-	
   return FALSE;
-}
-
-static void copy_clipboard(){
-  gint page = gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook));
-  struct term *t;
-  t = get_page_term(NULL, page);
-  vte_terminal_copy_clipboard(VTE_TERMINAL(t->vte));
-}
-
-static void paste_clipboard(){
-  gint page = gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook));
-  struct term *t;
-  t = get_page_term(NULL, page);
-  vte_terminal_paste_clipboard(VTE_TERMINAL(t->vte));
 }
 
 static void tab_close() {
@@ -393,9 +384,7 @@ static void configure_window() {
   g_signal_connect(svte.win, "key-press-event", G_CALLBACK(event_key), NULL);
   g_signal_connect(G_OBJECT(svte.notebook), "switch-page", G_CALLBACK(tab_focus),
                    NULL);
-  struct term *t;
-  t = get_page_term(NULL, 0);
-  set_window_title(t);
+  set_window_title(get_current_term());
 } 
 
 

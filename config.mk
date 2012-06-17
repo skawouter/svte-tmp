@@ -30,12 +30,12 @@ MANPREFIX = ${PREFIX}/share/man
 # includes and libs
 
 GTKINC=$(shell pkg-config --cflags gtk+-2.0 vte )
-GTKLIB=$(shell pkg-config --libs gtk+-2.0 vte )
+GTKLIB=-lvte
 
 INCS = -I. -I/usr/include ${GTKINC}
 LIBS = -L/usr/lib -lc ${GTKLIB}
 # flags
-CPPFLAGS = -DVERSION=\"${VERSION}\" ${XINERAMAFLAGS}
+CPPFLAGS = -DVERSION=\"${VERSION}\"
 CFLAGS = -mtune=native -std=gnu99 -O3 ${INCS} ${CPPFLAGS}
 LDFLAGS = -s ${LIBS}
 
