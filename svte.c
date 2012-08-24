@@ -17,7 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #include "defaults.h"
 #include <gdk/gdkkeysyms.h>
 #include <glib/goption.h>
@@ -37,39 +36,6 @@ typedef struct term {
   GtkWidget *label;
   GPid *pid;
 } term;
-
-
-static void quit();
-gboolean event_key(GtkWidget *widget, GdkEventKey *event);
-gboolean event_button(GtkWidget *widget, GdkEventButton *button_event, struct term *t);
-static void tab_close();
-static char* tab_get_cwd(struct term* t);
-static void tab_switch(gboolean b);
-static void tab_title();
-static void tab_geometry_hints();
-static void tab_new();
-static void tab_togglebar();
-static void configure_window();
-static void tab_focus(GtkNotebook *notebook, GtkNotebookPage *page,
-                      guint page_num, gpointer user_data);
-static void set_window_title(term *t);
-static term* get_current_term();
-
-
-static GQuark term_data_id = 0;
-#define get_page_term( sakura, page_idx ) (struct term*)g_object_get_qdata(G_OBJECT( gtk_notebook_get_nth_page( (GtkNotebook*)svte.notebook, page_idx ) ), term_data_id);
-
-
-static gchar *config_file = NULL;
-static gboolean show_version = FALSE;
-static GOptionEntry options[] = { 
-  { "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_file,
-    "Path to configuration file to use.", NULL }, 
-  { "version", 0, 0, G_OPTION_ARG_NONE, &show_version,
-    "Print version information and exit", NULL }, 
-  { NULL } 
-}; 
-
 
 typedef struct {
   gboolean audible_bell;
@@ -93,25 +59,57 @@ typedef struct {
   GdkColor *colour_palette;
   gchar *cursor;
 } Settings;
+
+static void quit();
+gboolean event_key(GtkWidget *widget, GdkEventKey *event);
+gboolean event_button(GtkWidget *widget, GdkEventButton *button_event, struct term *t);
+static void tab_close();
+static char* tab_get_cwd(struct term* t);
+static void tab_switch(gboolean b);
+static void tab_title();
+static void tab_geometry_hints();
+static void tab_new();
+static void tab_togglebar();
+static void configure_window();
+static void tab_focus(GtkNotebook *notebook, GtkNotebookPage *page,
+    guint page_num, gpointer user_data);
+static void set_window_title(term *t);
+static inline term* get_current_term();
+static inline term* get_nth_term(guint page);
+
+static GQuark term_data_id = 0;
 static Settings *config;
+static gchar *config_file = NULL;
+static gboolean show_version = FALSE;
+static GOptionEntry options[] = { 
+  { "config", 'c', 0, G_OPTION_ARG_FILENAME, &config_file,
+    "Path to configuration file to use.", NULL }, 
+  { "version", 0, 0, G_OPTION_ARG_NONE, &show_version,
+    "Print version information and exit", NULL }, 
+  { NULL } 
+}; 
 
-
-/**
- * Helper function, if i ever need to do something while closing, like query if
- * more than one tab :)
- */
+/* quit helper function */
 static void quit() {
   gtk_main_quit();
 }
 
 
-static term* get_current_term(){
+/* return the nth page */
+//#define get_page_term( sakura, page_idx ) (struct term*)g_object_get_qdata(G_OBJECT( gtk_notebook_get_nth_page( (GtkNotebook*)svte.notebook, page_idx ) ), term_data_id);
+static inline term* get_nth_term(guint page) {
+  return (struct term*)g_object_get_qdata(G_OBJECT(gtk_notebook_get_nth_page((GtkNotebook*)svte.notebook, page) ), term_data_id);
+}
+
+/* return current page */
+static inline term* get_current_term(){
   gint page = gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook));
   struct term *t;
-  t = get_page_term(NULL, page);
+  t = get_nth_term(page);
   return t;
 }
 
+/* key event handler */
 gboolean event_key(GtkWidget *widget, GdkEventKey *event) {
   guint(g) = event->keyval;
   if ((event->state & (GDK_CONTROL_MASK|GDK_SHIFT_MASK)) ==
@@ -161,14 +159,16 @@ gboolean event_key(GtkWidget *widget, GdkEventKey *event) {
 }
 
 
+/* button event handler */
 gboolean event_button(GtkWidget *widget, GdkEventButton *button_event, struct term *t) {
   return FALSE;
 }
 
+/* function closes the current tab */
 static void tab_close() {
   gint page = gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook));
   struct term *t;
-  t = get_page_term(NULL, page);
+  t = get_nth_term(page);
   gtk_notebook_remove_page(GTK_NOTEBOOK(svte.notebook), page);
   g_free(t);
 
@@ -176,13 +176,14 @@ static void tab_close() {
     gtk_notebook_set_show_tabs(GTK_NOTEBOOK(svte.notebook), FALSE);
     gtk_widget_grab_focus(
         gtk_notebook_get_nth_page(GTK_NOTEBOOK(svte.notebook),
-        gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook))));
+          gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook))));
   }
   if (gtk_notebook_get_n_pages(GTK_NOTEBOOK(svte.notebook)) == 0) {
     quit();
   }
 }
 
+/* toggle the visibility of the notebook tab */
 static void tab_togglebar() {
 
   if(gtk_notebook_get_show_tabs(GTK_NOTEBOOK(svte.notebook))) {
@@ -201,28 +202,28 @@ static void tab_togglebar() {
  * Adapted by Hong Jen Yee, non-linux shit removed by David GÃ³mez */
 static char* tab_get_cwd(struct term* t)
 {
-    char *cwd = NULL;
+  char *cwd = NULL;
 
-    if (t->pid >= 0) {
-        char *file;
-        char buf[255+1];
-        int len;
+  if (t->pid >= 0) {
+    char *file;
+    char buf[255+1];
+    int len;
 
-        file = g_strdup_printf ("/proc/%d/cwd", t->pid);
-        len = readlink (file, buf, sizeof (buf) - 1);
+    file = g_strdup_printf ("/proc/%d/cwd", t->pid);
+    len = readlink (file, buf, sizeof (buf) - 1);
 
-        if (len > 0 && buf[0] == '/') {
-            buf[len] = '\0';
-            cwd = g_strdup(buf);
-        }
-
-        g_free(file);
+    if (len > 0 && buf[0] == '/') {
+      buf[len] = '\0';
+      cwd = g_strdup(buf);
     }
 
-    return cwd;
+    g_free(file);
+  }
+
+  return cwd;
 }
 
-
+/* callback for when tabs switch */
 static void tab_switch(gboolean b) {
   gint(current) = gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook));
   if(b) {
@@ -241,7 +242,7 @@ static void tab_switch(gboolean b) {
   gtk_notebook_set_current_page(GTK_NOTEBOOK(svte.notebook), current);
 }
 
-
+/* setup the whacky geometry hints for gtk */
 static void tab_geometry_hints(term *t) {
   // I dont need to call this every time, since the char width only changes
   // once, maybe I'll make hints and border global and reuse them
@@ -267,35 +268,41 @@ static void tab_geometry_hints(term *t) {
       GDK_HINT_RESIZE_INC | GDK_HINT_MIN_SIZE | GDK_HINT_BASE_SIZE);
 }
 
-
+/* set a tab title */
 static void tab_title(GtkWidget *widget, term *t) {
   gtk_label_set_text(
       GTK_LABEL(t->label),
       vte_terminal_get_window_title(VTE_TERMINAL(t->vte)));
-  set_window_title(t);
+
+  if(t  == get_current_term()) {  
+    set_window_title(t);
+  }
 } 
 
-
+/* set the window title */
 static void set_window_title(term *t){
   const char *title = vte_terminal_get_window_title(VTE_TERMINAL(t->vte));
+
   if (title == NULL) {
     title = "svte";
   }
+
   gtk_window_set_title(GTK_WINDOW(svte.win), title);
 }
 
+/* focus the tab */
 static void tab_focus(GtkNotebook *notebook, GtkNotebookPage *page,
-                      guint page_num, gpointer user_data) {
+    guint page_num, gpointer user_data) {
   struct term *t;
-  t = get_page_term(NULL, page_num);
+  t = get_nth_term(page_num);
   set_window_title(t);
 }
 
-
+/* create a new tab */
 static void tab_new() {
   term *t;
   int *tmp;
-  
+
 
   char **args = 0;
   const gchar *shell = g_getenv("SHELL");
@@ -308,87 +315,97 @@ static void tab_new() {
   t->label = gtk_label_new("");
   t->vte = vte_terminal_new();
   int index = gtk_notebook_append_page(GTK_NOTEBOOK(svte.notebook), t->vte,
-                                       t->label);
+      t->label);
   gtk_notebook_set_tab_reorderable(GTK_NOTEBOOK(svte.notebook), t->vte, TRUE);
 
   if (index == 0) {
     gtk_notebook_set_show_tabs(GTK_NOTEBOOK(svte.notebook), FALSE);
     vte_terminal_fork_command_full(VTE_TERMINAL(t->vte), 
-                VTE_PTY_DEFAULT, NULL, 
-                args, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, t->pid, NULL);
+        VTE_PTY_DEFAULT, NULL, 
+        args, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, t->pid, NULL);
     tab_geometry_hints(t);
   } else {
-    struct term *previous = get_page_term(NULL, 
-      gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook)));
+    struct term *previous = get_nth_term(gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook)));
 
     vte_terminal_fork_command_full(VTE_TERMINAL(t->vte), 
-                VTE_PTY_DEFAULT, tab_get_cwd(previous), 
-                args, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, t->pid, NULL);
+        VTE_PTY_DEFAULT, tab_get_cwd(previous), 
+        args, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, t->pid, NULL);
     gtk_notebook_set_show_tabs(GTK_NOTEBOOK(svte.notebook), TRUE);
   }
-   
+
   g_object_set_qdata_full(G_OBJECT(gtk_notebook_get_nth_page(
-      (GtkNotebook*)svte.notebook, index)), term_data_id, t, NULL);
+          (GtkNotebook*)svte.notebook, index)), term_data_id, t, NULL);
+
   g_signal_connect(G_OBJECT(t->vte), "child-exited", G_CALLBACK(tab_close), NULL);
   g_signal_connect(G_OBJECT(t->vte), "window-title-changed", G_CALLBACK(tab_title), t);
   g_signal_connect(G_OBJECT(t->vte), "button-press-event", G_CALLBACK(event_button), t);
+
   vte_terminal_set_allow_bold(VTE_TERMINAL(t->vte), config->allow_bold);
   vte_terminal_set_audible_bell(VTE_TERMINAL(t->vte), config->audible_bell);
   vte_terminal_set_background_transparent(VTE_TERMINAL(t->vte),
-                                          config->bg_transparent);
+      config->bg_transparent);
   vte_terminal_set_background_saturation(VTE_TERMINAL(t->vte), config->bg_saturation);
   vte_terminal_set_background_image_file(VTE_TERMINAL(t->vte), config->bg_image);
   vte_terminal_set_font_from_string(VTE_TERMINAL(t->vte), config->font);
   vte_terminal_set_mouse_autohide(VTE_TERMINAL(t->vte),
-                                  config->autohide_mouse);
+      config->autohide_mouse);
   vte_terminal_set_scroll_on_keystroke(VTE_TERMINAL(t->vte),
-                                       config->scroll_on_keystroke);
+      config->scroll_on_keystroke);
   vte_terminal_set_scroll_on_output(VTE_TERMINAL(t->vte),
-                                    config->scroll_on_output);
+      config->scroll_on_output);
   vte_terminal_set_scrollback_lines(VTE_TERMINAL(t->vte),
-                                    config->num_scrollback_lines);
+      config->num_scrollback_lines);
   vte_terminal_set_visible_bell(VTE_TERMINAL(t->vte), config->visible_bell);
   vte_terminal_set_word_chars(VTE_TERMINAL(t->vte), config->word_chars);
   vte_terminal_set_colors(VTE_TERMINAL(t->vte), &config->foreground,
-                            &config->background, config->colour_palette, DEFAULT_PALETTE_SIZE);
+      &config->background, config->colour_palette, DEFAULT_PALETTE_SIZE);
 
   *tmp = vte_terminal_match_add_gregex(
       VTE_TERMINAL(t->vte),
       g_regex_new(config->url_regex, G_REGEX_CASELESS, G_REGEX_MATCH_NOTEMPTY,
-                  NULL),
+        NULL), 
       0);
+
   vte_terminal_match_set_cursor_type(VTE_TERMINAL(t->vte), *tmp,
-                                     GDK_HAND2);
+      GDK_HAND2);
   g_free(tmp);
   gtk_widget_show_all(svte.notebook);
   gtk_notebook_set_current_page(GTK_NOTEBOOK(svte.notebook), index);
   gtk_widget_grab_focus(t->vte);
 }
 
-
+/* setup the main window */
 static void configure_window() {
   term_data_id = g_quark_from_static_string("svte");
   svte.notebook = gtk_notebook_new();
   gtk_notebook_set_show_border(GTK_NOTEBOOK(svte.notebook), FALSE);
   gtk_notebook_set_scrollable(GTK_NOTEBOOK(svte.notebook), TRUE);
   svte.win = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+
   if (config->fullscreen) {
     gtk_window_fullscreen(GTK_WINDOW(svte.win));
   }
+
   gtk_window_set_default_size(GTK_WINDOW(svte.win),
-                              config->window_width,
-                              config->window_height);
+      config->window_width,
+      config->window_height);
   gtk_container_add(GTK_CONTAINER(svte.win), svte.notebook);
+
   tab_new();
+
   gtk_widget_show_all(svte.win);
+  
+  /* add the callback signals */
   g_signal_connect(G_OBJECT(svte.win), "destroy", G_CALLBACK(quit), NULL);
   g_signal_connect(svte.win, "key-press-event", G_CALLBACK(event_key), NULL);
   g_signal_connect(G_OBJECT(svte.notebook), "switch-page", G_CALLBACK(tab_focus),
-                   NULL);
+      NULL);
+
   set_window_title(get_current_term());
 } 
 
 
+/* handle the command line arguments */
 static gboolean parse_command_line_options(int argc, char* argv[]) {
   gboolean retval = TRUE;
   GError *error = NULL;
@@ -403,7 +420,7 @@ static gboolean parse_command_line_options(int argc, char* argv[]) {
   return retval;
 }
 
-
+/* parse the config file, using the Settings struct */
 static void parse_config_file(gchar *config_file) {
   GKeyFile *keyfile;
   GKeyFileFlags flags;
@@ -415,8 +432,8 @@ static void parse_config_file(gchar *config_file) {
   keyfile = g_key_file_new();
   if (!g_key_file_load_from_file(keyfile, config_file, flags, &error)) {
     g_warning("Error parsing config file %s: %s\n",
-              config_file,
-              error->message);
+        config_file,
+        error->message);
   }
 
   config = g_slice_new(Settings);
@@ -459,19 +476,19 @@ static void parse_config_file(gchar *config_file) {
   for (int i=0; i < DEFAULT_PALETTE_SIZE; i++){
     g_snprintf(addid, 3, "%d", i);
     gdk_color_parse(g_key_file_get_string(keyfile, "colour scheme", 
-                                            addid , NULL), &config->colour_palette[i]);
+          addid , NULL), &config->colour_palette[i]);
   }
 
   if (!gdk_color_parse(g_key_file_get_string(
           keyfile, "colour scheme", "foreground", NULL), &config->foreground)){
-      gdk_color_parse(DEFAULT_FOREGROUND_COLOR, &config->foreground);
-      g_warning("Using default foreground color");
+    gdk_color_parse(DEFAULT_FOREGROUND_COLOR, &config->foreground);
+    g_warning("Using default foreground color");
   }
-  
+
   if (!gdk_color_parse(g_key_file_get_string(
           keyfile, "colour scheme", "background", NULL), &config->background)){
-      gdk_color_parse(DEFAULT_BACKGROUND_COLOR, &config->background);
-      g_warning("Using default background color");
+    gdk_color_parse(DEFAULT_BACKGROUND_COLOR, &config->background);
+    g_warning("Using default background color");
   }
 
   if (NULL == config->font) {
