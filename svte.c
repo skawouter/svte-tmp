@@ -74,6 +74,8 @@ static void configure_window();
 static void tab_focus(GtkNotebook *notebook, GtkNotebookPage *page,
     guint page_num, gpointer user_data);
 static void set_window_title(term *t);
+static void launch_url(char *url);
+
 static inline term* get_current_term();
 static inline term* get_nth_term(guint page);
 
@@ -108,6 +110,12 @@ static inline term* get_current_term(){
   t = get_nth_term(page);
   return t;
 }
+
+
+static void launch_url(char *url) {
+  g_spawn_command_line_async(g_strconcat(DEFAULT_BROWSER_COMMAND, " ", url, NULL), NULL);	
+}
+
 
 /* key event handler */
 gboolean event_key(GtkWidget *widget, GdkEventKey *event) {
@@ -161,6 +169,21 @@ gboolean event_key(GtkWidget *widget, GdkEventKey *event) {
 
 /* button event handler */
 gboolean event_button(GtkWidget *widget, GdkEventButton *button_event, struct term *t) {
+
+  glong col = 0;
+  glong row = 0;
+  int ret = 0;
+  gchar *match;
+
+  if(button_event->button == 1) {
+    match = vte_terminal_match_check(VTE_TERMINAL(t->vte), 
+                                        button_event->x / vte_terminal_get_char_width (VTE_TERMINAL (t->vte)),
+                                        button_event->y / vte_terminal_get_char_height (VTE_TERMINAL (t->vte)),
+                                           &ret);
+    launch_url(match);
+    return TRUE;
+    
+  }
   return FALSE;
 }
 
@@ -394,7 +417,7 @@ static void configure_window() {
   tab_new();
 
   gtk_widget_show_all(svte.win);
-  
+
   /* add the callback signals */
   g_signal_connect(G_OBJECT(svte.win), "destroy", G_CALLBACK(quit), NULL);
   g_signal_connect(svte.win, "key-press-event", G_CALLBACK(event_key), NULL);
