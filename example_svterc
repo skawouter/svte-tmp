@@ -1,3 +1,8 @@
+[general]
+
+# Specify a web browser you'd like, otherwise svte will use xdg-open
+# browser = firefox
+
 [ui]
 # true to enable bold text, false to disable it.
 allow_bold=false

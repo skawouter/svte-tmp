@@ -41,6 +41,7 @@ typedef struct {
   gboolean audible_bell;
   gboolean autohide_mouse;
   gboolean allow_bold;
+  gchar *browser_command;
   gchar *font;
   gboolean fullscreen;
   gint num_scrollback_lines;
@@ -113,7 +114,7 @@ static inline term* get_current_term(){
 
 
 static void launch_url(char *url) {
-  g_spawn_command_line_async(g_strconcat(DEFAULT_BROWSER_COMMAND, " ", url, NULL), NULL);	
+  g_spawn_command_line_async(g_strconcat(config->browser_command, " ", url, NULL), NULL);	
 }
 
 
@@ -233,7 +234,7 @@ static char* tab_get_cwd(struct term* t)
     char buf[255+1];
     int len;
 
-    file = g_strdup_printf ("/proc/%d/cwd", t->pid);
+    file = g_strdup_printf ("/proc/%d/cwd", (int)t->pid);
     len = readlink (file, buf, sizeof (buf) - 1);
 
     if (len > 0 && buf[0] == '/') {
@@ -461,6 +462,13 @@ static void parse_config_file(gchar *config_file) {
   }
 
   config = g_slice_new(Settings);
+
+  /* General Settings */
+  config->browser_command = g_key_file_get_string(
+      keyfile, "general", "browser", NULL);
+
+
+  /* UI Settings */
   config->audible_bell = g_key_file_get_boolean(
       keyfile, "ui", "audible_bell", NULL);
   config->autohide_mouse = g_key_file_get_boolean(
@@ -493,6 +501,8 @@ static void parse_config_file(gchar *config_file) {
       keyfile, "ui", "window_width", NULL);
   config->word_chars = g_key_file_get_string(
       keyfile, "ui", "word_chars", NULL);
+
+  /* Color Scheme Settings */
   config->cursor = g_key_file_get_string(
       keyfile, "colour scheme", "cursor", NULL);
 
@@ -519,11 +529,16 @@ static void parse_config_file(gchar *config_file) {
     config->font = DEFAULT_FONT;
   }
 
+  if(NULL == config->browser_command) {
+    config->browser_command = DEFAULT_BROWSER_COMMAND; 
+  }
+
   if (NULL == config->url_regex) {
     config->url_regex = DEFAULT_URL_REGEX;
   }
 
   g_free(addid);
+  g_key_file_free(keyfile);
 }
 
 
