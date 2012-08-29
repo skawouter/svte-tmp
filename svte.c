@@ -452,6 +452,7 @@ static void parse_config_file(gchar *config_file) {
   GError *error = NULL;
   gsize length;
   gchar *addid; 
+  int i = 0;
   addid = (gchar *) g_malloc (3);
 
   keyfile = g_key_file_new();
@@ -507,7 +508,7 @@ static void parse_config_file(gchar *config_file) {
       keyfile, "colour scheme", "cursor", NULL);
 
   config->colour_palette = (GdkColor *) g_malloc(sizeof(GdkColor) * DEFAULT_PALETTE_SIZE);
-  for (int i=0; i < DEFAULT_PALETTE_SIZE; i++){
+  for (i=0; i < DEFAULT_PALETTE_SIZE; i++){
     g_snprintf(addid, 3, "%d", i);
     gdk_color_parse(g_key_file_get_string(keyfile, "colour scheme", 
           addid , NULL), &config->colour_palette[i]);
