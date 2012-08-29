@@ -177,12 +177,13 @@ gboolean event_button(GtkWidget *widget, GdkEventButton *button_event, struct te
 
   if(button_event->button == 1) {
     match = vte_terminal_match_check(VTE_TERMINAL(t->vte), 
-                                        button_event->x / vte_terminal_get_char_width (VTE_TERMINAL (t->vte)),
-                                        button_event->y / vte_terminal_get_char_height (VTE_TERMINAL (t->vte)),
-                                           &ret);
-    launch_url(match);
-    return TRUE;
-    
+        button_event->x / vte_terminal_get_char_width (VTE_TERMINAL (t->vte)),
+        button_event->y / vte_terminal_get_char_height (VTE_TERMINAL (t->vte)),
+        &ret);
+    if (match) {
+      launch_url(match);
+      return TRUE;
+    }
   }
   return FALSE;
 }
