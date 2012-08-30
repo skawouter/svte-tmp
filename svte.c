@@ -63,7 +63,7 @@ typedef struct {
 
 static void quit();
 gboolean event_key(GtkWidget *widget, GdkEventKey *event);
-gboolean event_button(GtkWidget *widget, GdkEventButton *button_event, struct term *t);
+gboolean event_button(GtkWidget *widget, GdkEventButton *button_event);
 static void tab_close();
 static char* tab_get_cwd(struct term* t);
 static void tab_switch(gboolean b);
@@ -169,17 +169,15 @@ gboolean event_key(GtkWidget *widget, GdkEventKey *event) {
 
 
 /* button event handler */
-gboolean event_button(GtkWidget *widget, GdkEventButton *button_event, struct term *t) {
+gboolean event_button(GtkWidget *widget, GdkEventButton *button_event) {
 
-  glong col = 0;
-  glong row = 0;
   int ret = 0;
   gchar *match;
 
   if(button_event->button == 1) {
-    match = vte_terminal_match_check(VTE_TERMINAL(t->vte), 
-        button_event->x / vte_terminal_get_char_width (VTE_TERMINAL (t->vte)),
-        button_event->y / vte_terminal_get_char_height (VTE_TERMINAL (t->vte)),
+    match = vte_terminal_match_check(VTE_TERMINAL(widget), 
+        button_event->x / vte_terminal_get_char_width (VTE_TERMINAL (widget)),
+        button_event->y / vte_terminal_get_char_height (VTE_TERMINAL (widget)),
         &ret);
     if (match) {
       launch_url(match);
@@ -363,7 +361,7 @@ static void tab_new() {
 
   g_signal_connect(G_OBJECT(t->vte), "child-exited", G_CALLBACK(tab_close), NULL);
   g_signal_connect(G_OBJECT(t->vte), "window-title-changed", G_CALLBACK(tab_title), t);
-  g_signal_connect(G_OBJECT(t->vte), "button-press-event", G_CALLBACK(event_button), t);
+  g_signal_connect(G_OBJECT(t->vte), "button-press-event", G_CALLBACK(event_button), NULL);
 
   vte_terminal_set_allow_bold(VTE_TERMINAL(t->vte), config->allow_bold);
   vte_terminal_set_audible_bell(VTE_TERMINAL(t->vte), config->audible_bell);
@@ -447,15 +445,13 @@ static gboolean parse_command_line_options(int argc, char* argv[]) {
 /* parse the config file, using the Settings struct */
 static void parse_config_file(gchar *config_file) {
   GKeyFile *keyfile;
-  GKeyFileFlags flags;
   GError *error = NULL;
-  gsize length;
   gchar *addid; 
   int i = 0;
   addid = (gchar *) g_malloc (3);
 
   keyfile = g_key_file_new();
-  if (!g_key_file_load_from_file(keyfile, config_file, flags, &error)) {
+  if (!g_key_file_load_from_file(keyfile, config_file, G_KEY_FILE_NONE, &error)) {
     g_warning("Error parsing config file %s: %s\n",
         config_file,
         error->message);
