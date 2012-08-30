@@ -326,7 +326,7 @@ static void tab_focus(GtkNotebook *notebook, GtkNotebookPage *page,
 /* create a new tab */
 static void tab_new() {
   term *t;
-  int *tmp;
+  int tmp;
 
 
   char **args = 0;
@@ -385,15 +385,14 @@ static void tab_new() {
   vte_terminal_set_colors(VTE_TERMINAL(t->vte), &config->foreground,
       &config->background, config->colour_palette, DEFAULT_PALETTE_SIZE);
 
-  *tmp = vte_terminal_match_add_gregex(
+  tmp = vte_terminal_match_add_gregex(
       VTE_TERMINAL(t->vte),
       g_regex_new(config->url_regex, G_REGEX_CASELESS, G_REGEX_MATCH_NOTEMPTY,
         NULL), 
       0);
 
-  vte_terminal_match_set_cursor_type(VTE_TERMINAL(t->vte), *tmp,
+  vte_terminal_match_set_cursor_type(VTE_TERMINAL(t->vte), tmp,
       GDK_HAND2);
-  g_free(tmp);
   gtk_widget_show_all(svte.notebook);
   gtk_notebook_set_current_page(GTK_NOTEBOOK(svte.notebook), index);
   gtk_widget_grab_focus(t->vte);
