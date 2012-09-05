@@ -24,17 +24,17 @@
 #include <vte/vte.h>
 #include <unistd.h>
 
-static struct {
+typedef struct window {
   GtkWidget *win;
   GtkWidget *notebook;
   gchar *title;
-} svte;
-
+} window;
 
 typedef struct term {
   GtkWidget *vte;
   GtkWidget *label;
   GPid *pid;
+  struct window *w;
 } term;
 
 typedef struct {
@@ -62,23 +62,23 @@ typedef struct {
 } Settings;
 
 static void quit();
-gboolean event_key(GtkWidget *widget, GdkEventKey *event);
+gboolean event_key(GtkWidget *widget, GdkEventKey *event, window *w);
 gboolean event_button(GtkWidget *widget, GdkEventButton *button_event);
-static void tab_close();
+static void tab_close(VteTerminal *term, struct window *w);
 static char* tab_get_cwd(struct term* t);
-static void tab_switch(gboolean b);
+static void tab_switch(gboolean b, struct window *w);
 static void tab_title();
 static void tab_geometry_hints();
-static void tab_new();
-static void tab_togglebar();
-static void configure_window();
+static void tab_new(struct window *w);
+static void tab_togglebar(struct window *w);
+static void new_window();
 static void tab_focus(GtkNotebook *notebook, GtkNotebookPage *page,
-    guint page_num, gpointer user_data);
+    guint page_num, struct window *w);
 static void set_window_title(term *t);
 static void launch_url(char *url);
 
-static inline term* get_current_term();
-static inline term* get_nth_term(guint page);
+static inline term* get_current_term(window *w);
+static inline term* get_nth_term(window *w, guint page);
 
 static GQuark term_data_id = 0;
 static Settings *config;
@@ -99,16 +99,16 @@ static void quit() {
 
 
 /* return the nth page */
-//#define get_page_term( sakura, page_idx ) (struct term*)g_object_get_qdata(G_OBJECT( gtk_notebook_get_nth_page( (GtkNotebook*)svte.notebook, page_idx ) ), term_data_id);
-static inline term* get_nth_term(guint page) {
-  return (struct term*)g_object_get_qdata(G_OBJECT(gtk_notebook_get_nth_page((GtkNotebook*)svte.notebook, page) ), term_data_id);
+static inline term* get_nth_term(window *w, guint page) {
+  return (struct term*)g_object_get_qdata(G_OBJECT(gtk_notebook_get_nth_page((GtkNotebook*)w->notebook, page) ), term_data_id);
 }
 
+
 /* return current page */
-static inline term* get_current_term(){
-  gint page = gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook));
+static inline term* get_current_term(window *w){
+  gint page = gtk_notebook_get_current_page(GTK_NOTEBOOK(w->notebook));
   struct term *t;
-  t = get_nth_term(page);
+  t = get_nth_term(w, page);
   return t;
 }
 
@@ -119,46 +119,50 @@ static void launch_url(char *url) {
 
 
 /* key event handler */
-gboolean event_key(GtkWidget *widget, GdkEventKey *event) {
+gboolean event_key(GtkWidget *widget, GdkEventKey *event, window *w) {
   guint(g) = event->keyval;
   if ((event->state & (GDK_CONTROL_MASK|GDK_SHIFT_MASK)) ==
       (GDK_CONTROL_MASK|GDK_SHIFT_MASK)) {
+    if (g == GDK_N) {
+      new_window();
+      return TRUE;
+    }
     if (g == GDK_T) {
-      tab_new();
+      tab_new(w);
       return TRUE;
     }
     if (g == GDK_H) {
-      tab_togglebar();
+      tab_togglebar(w);
       return TRUE;
     }
     if (g == GDK_W) {
-      tab_close();
+      tab_close(NULL, w);
       return TRUE;
     }
     if (g == GDK_V) {
-      vte_terminal_paste_clipboard(VTE_TERMINAL(get_current_term()->vte));
+      vte_terminal_paste_clipboard(VTE_TERMINAL(get_current_term(w)->vte));
       return TRUE;
     }
     if (g == GDK_C) {
-      vte_terminal_copy_clipboard(VTE_TERMINAL(get_current_term()->vte));
+      vte_terminal_copy_clipboard(VTE_TERMINAL(get_current_term(w)->vte));
       return TRUE;
     }
   }
   if ((event->state & (GDK_MOD1_MASK) ) == (GDK_MOD1_MASK)) {
     if (g == GDK_Left) {
-      tab_switch(FALSE);
+      tab_switch(FALSE, w);
       return TRUE;
     }
     if (g == GDK_Right) {
-      tab_switch(TRUE);
+      tab_switch(TRUE, w);
       return TRUE;
     }
     if (g == GDK_F11) {
       if(config->fullscreen) {
-        gtk_window_unfullscreen(GTK_WINDOW(svte.win));
+        gtk_window_unfullscreen(GTK_WINDOW(widget));
         config->fullscreen = FALSE;
       } else {
-        gtk_window_fullscreen(GTK_WINDOW(svte.win));
+        gtk_window_fullscreen(GTK_WINDOW(widget));
         config->fullscreen = TRUE;
       }
       return TRUE;
@@ -187,34 +191,47 @@ gboolean event_button(GtkWidget *widget, GdkEventButton *button_event) {
   return FALSE;
 }
 
-/* function closes the current tab */
-static void tab_close() {
-  gint page = gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook));
-  struct term *t;
-  t = get_nth_term(page);
-  gtk_notebook_remove_page(GTK_NOTEBOOK(svte.notebook), page);
-  g_free(t);
+/* function that closes the current window */
+static void window_close(struct window *w) {
 
-  if (gtk_notebook_get_n_pages(GTK_NOTEBOOK(svte.notebook)) == 1) {
-    gtk_notebook_set_show_tabs(GTK_NOTEBOOK(svte.notebook), FALSE);
-    gtk_widget_grab_focus(
-        gtk_notebook_get_nth_page(GTK_NOTEBOOK(svte.notebook),
-          gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook))));
-  }
-  if (gtk_notebook_get_n_pages(GTK_NOTEBOOK(svte.notebook)) == 0) {
+  gtk_widget_destroy(w->notebook);
+  gtk_widget_destroy(w->win);
+  g_free(w);
+
+  GList *list = gtk_window_list_toplevels();
+  if(g_list_length(list) < 1) {
     quit();
   }
 }
 
-/* toggle the visibility of the notebook tab */
-static void tab_togglebar() {
+/* function closes the current tab */
+static void tab_close(VteTerminal *term, struct window *w) {
 
-  if(gtk_notebook_get_show_tabs(GTK_NOTEBOOK(svte.notebook))) {
-    gtk_notebook_set_show_tabs(GTK_NOTEBOOK(svte.notebook), FALSE);
+  gint page = gtk_notebook_get_current_page(GTK_NOTEBOOK(w->notebook));
+  struct term *t = get_nth_term(w, page);
+  gtk_notebook_remove_page(GTK_NOTEBOOK(w->notebook), page);
+  g_free(t);
+
+  if (gtk_notebook_get_n_pages(GTK_NOTEBOOK(w->notebook)) == 1) {
+    gtk_notebook_set_show_tabs(GTK_NOTEBOOK(w->notebook), FALSE);
+    gtk_widget_grab_focus(
+        gtk_notebook_get_nth_page(GTK_NOTEBOOK(w->notebook),
+          gtk_notebook_get_current_page(GTK_NOTEBOOK(w->notebook))));
+  }
+  if (gtk_notebook_get_n_pages(GTK_NOTEBOOK(w->notebook)) == 0) {
+    window_close(w);
+  }
+}
+
+/* toggle the visibility of the notebook tab */
+static void tab_togglebar(struct window *w) {
+
+  if(gtk_notebook_get_show_tabs(GTK_NOTEBOOK(w->notebook))) {
+    gtk_notebook_set_show_tabs(GTK_NOTEBOOK(w->notebook), FALSE);
   }
   else {
-    if (gtk_notebook_get_n_pages(GTK_NOTEBOOK(svte.notebook)) != 1)  {
-      gtk_notebook_set_show_tabs(GTK_NOTEBOOK(svte.notebook), TRUE); 
+    if (gtk_notebook_get_n_pages(GTK_NOTEBOOK(w->notebook)) != 1)  {
+      gtk_notebook_set_show_tabs(GTK_NOTEBOOK(w->notebook), TRUE); 
     }
   }
 }
@@ -247,22 +264,22 @@ static char* tab_get_cwd(struct term* t)
 }
 
 /* callback for when tabs switch */
-static void tab_switch(gboolean b) {
-  gint(current) = gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook));
+static void tab_switch(gboolean b, struct window *w) {
+  gint(current) = gtk_notebook_get_current_page(GTK_NOTEBOOK(w->notebook));
   if(b) {
-    if (current == gtk_notebook_get_n_pages(GTK_NOTEBOOK(svte.notebook)) -1 ) {
+    if (current == gtk_notebook_get_n_pages(GTK_NOTEBOOK(w->notebook)) -1 ) {
       current = 0;
     } else {
       current = current + 1;
     }
   } else {
     if (current == 0) {
-      current = gtk_notebook_get_n_pages(GTK_NOTEBOOK(svte.notebook)) - 1;
+      current = gtk_notebook_get_n_pages(GTK_NOTEBOOK(w->notebook)) - 1;
     } else {
       current = current -1;
     }
   }
-  gtk_notebook_set_current_page(GTK_NOTEBOOK(svte.notebook), current);
+  gtk_notebook_set_current_page(GTK_NOTEBOOK(w->notebook), current);
 }
 
 /* setup the whacky geometry hints for gtk */
@@ -285,7 +302,7 @@ static void tab_geometry_hints(term *t) {
   hints.height_inc = char_height;
 
   gtk_window_set_geometry_hints(
-      GTK_WINDOW(svte.win),
+      GTK_WINDOW(t->w->win),
       GTK_WIDGET(t->vte),
       &hints,
       GDK_HINT_RESIZE_INC | GDK_HINT_MIN_SIZE | GDK_HINT_BASE_SIZE);
@@ -297,7 +314,7 @@ static void tab_title(GtkWidget *widget, term *t) {
       GTK_LABEL(t->label),
       vte_terminal_get_window_title(VTE_TERMINAL(t->vte)));
 
-  if(t  == get_current_term()) {  
+  if(t  == get_current_term(t->w)) {  
     set_window_title(t);
   }
 } 
@@ -310,19 +327,19 @@ static void set_window_title(term *t){
     title = "svte";
   }
 
-  gtk_window_set_title(GTK_WINDOW(svte.win), title);
+  gtk_window_set_title(GTK_WINDOW(t->w->win), title);
 }
 
 /* focus the tab */
 static void tab_focus(GtkNotebook *notebook, GtkNotebookPage *page,
-    guint page_num, gpointer user_data) {
+    guint page_num, struct window *w) {
   struct term *t;
-  t = get_nth_term(page_num);
+  t = get_nth_term(w, page_num);
   set_window_title(t);
 }
 
 /* create a new tab */
-static void tab_new() {
+static void tab_new(struct window *w) {
   term *t;
   int tmp;
 
@@ -336,30 +353,31 @@ static void tab_new() {
 
   t = g_new0(term, 1);
   t->label = gtk_label_new("");
+  t->w = w;
   t->vte = vte_terminal_new();
-  int index = gtk_notebook_append_page(GTK_NOTEBOOK(svte.notebook), t->vte,
+  int index = gtk_notebook_append_page(GTK_NOTEBOOK(w->notebook), t->vte,
       t->label);
-  gtk_notebook_set_tab_reorderable(GTK_NOTEBOOK(svte.notebook), t->vte, TRUE);
+  gtk_notebook_set_tab_reorderable(GTK_NOTEBOOK(w->notebook), t->vte, TRUE);
 
   if (index == 0) {
-    gtk_notebook_set_show_tabs(GTK_NOTEBOOK(svte.notebook), FALSE);
+    gtk_notebook_set_show_tabs(GTK_NOTEBOOK(w->notebook), FALSE);
     vte_terminal_fork_command_full(VTE_TERMINAL(t->vte), 
         VTE_PTY_DEFAULT, NULL, 
         args, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, t->pid, NULL);
     tab_geometry_hints(t);
   } else {
-    struct term *previous = get_nth_term(gtk_notebook_get_current_page(GTK_NOTEBOOK(svte.notebook)));
+    struct term *previous = get_nth_term(w, gtk_notebook_get_current_page(GTK_NOTEBOOK(w->notebook)));
 
     vte_terminal_fork_command_full(VTE_TERMINAL(t->vte), 
         VTE_PTY_DEFAULT, tab_get_cwd(previous), 
         args, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, t->pid, NULL);
-    gtk_notebook_set_show_tabs(GTK_NOTEBOOK(svte.notebook), TRUE);
+    gtk_notebook_set_show_tabs(GTK_NOTEBOOK(w->notebook), TRUE);
   }
 
   g_object_set_qdata_full(G_OBJECT(gtk_notebook_get_nth_page(
-          (GtkNotebook*)svte.notebook, index)), term_data_id, t, NULL);
+          (GtkNotebook*)w->notebook, index)), term_data_id, t, NULL);
 
-  g_signal_connect(G_OBJECT(t->vte), "child-exited", G_CALLBACK(tab_close), NULL);
+  g_signal_connect(G_OBJECT(t->vte), "child-exited", G_CALLBACK(tab_close), w);
   g_signal_connect(G_OBJECT(t->vte), "window-title-changed", G_CALLBACK(tab_title), t);
   g_signal_connect(G_OBJECT(t->vte), "button-press-event", G_CALLBACK(event_button), NULL);
 
@@ -391,39 +409,41 @@ static void tab_new() {
 
   vte_terminal_match_set_cursor_type(VTE_TERMINAL(t->vte), tmp,
       GDK_HAND2);
-  gtk_widget_show_all(svte.notebook);
-  gtk_notebook_set_current_page(GTK_NOTEBOOK(svte.notebook), index);
+  gtk_widget_show_all(w->notebook);
+  gtk_notebook_set_current_page(GTK_NOTEBOOK(w->notebook), index);
   gtk_widget_grab_focus(t->vte);
 }
 
 /* setup the main window */
-static void configure_window() {
+static void new_window() {
+
+
+  window *w = g_new0(window, 1);
+
   term_data_id = g_quark_from_static_string("svte");
-  svte.notebook = gtk_notebook_new();
-  gtk_notebook_set_show_border(GTK_NOTEBOOK(svte.notebook), FALSE);
-  gtk_notebook_set_scrollable(GTK_NOTEBOOK(svte.notebook), TRUE);
-  svte.win = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+  w->notebook = gtk_notebook_new();
+  gtk_notebook_set_show_border(GTK_NOTEBOOK(w->notebook), FALSE);
+  gtk_notebook_set_scrollable(GTK_NOTEBOOK(w->notebook), TRUE);
+  w->win = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 
   if (config->fullscreen) {
-    gtk_window_fullscreen(GTK_WINDOW(svte.win));
+    gtk_window_fullscreen(GTK_WINDOW(w->win));
   }
 
-  gtk_window_set_default_size(GTK_WINDOW(svte.win),
+  gtk_window_set_default_size(GTK_WINDOW(w->win),
       config->window_width,
       config->window_height);
-  gtk_container_add(GTK_CONTAINER(svte.win), svte.notebook);
+  gtk_container_add(GTK_CONTAINER(w->win), w->notebook);
 
-  tab_new();
+  tab_new(w);
 
-  gtk_widget_show_all(svte.win);
+  gtk_widget_show_all(w->win);
 
   /* add the callback signals */
-  g_signal_connect(G_OBJECT(svte.win), "destroy", G_CALLBACK(quit), NULL);
-  g_signal_connect(svte.win, "key-press-event", G_CALLBACK(event_key), NULL);
-  g_signal_connect(G_OBJECT(svte.notebook), "switch-page", G_CALLBACK(tab_focus),
-      NULL);
+  g_signal_connect(G_OBJECT(w->win), "key-press-event", G_CALLBACK(event_key), w);
+  g_signal_connect(G_OBJECT(w->notebook), "switch-page", G_CALLBACK(tab_focus), w);
 
-  set_window_title(get_current_term());
+  set_window_title(get_current_term(w));
 } 
 
 
@@ -555,7 +575,8 @@ int main(int argc, char* argv[]) {
   }
   parse_config_file(config_file);
 
-  configure_window();
+  new_window();
+
   gtk_main();
   return 0;
 }
